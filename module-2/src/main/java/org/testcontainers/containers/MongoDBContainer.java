@@ -10,50 +10,13 @@ import java.io.IOException;
 
 public class MongoDBContainer extends GenericContainer<MongoDBContainer> {
 
-    private boolean shardingEnabled;
-
-    public MongoDBContainer withSharding() {
-        this.shardingEnabled = true;
-        getContainerDef().withSharding();
-        return this;
-    }
-
-    private static final String STARTER_SCRIPT = "/testcontainers_start.sh";
-
-    private static class MongoDBContainerDef extends ContainerDef {
-
-        private static final int MONGODB_INTERNAL_PORT = 27017;
-
-        MongoDBContainerDef() {
-            addExposedTcpPort(MONGODB_INTERNAL_PORT);
-            setCommand("--replSet", "docker-rs");
-            setWaitStrategy(Wait.forLogMessage("(?i).waiting for connections.", 1));
-        }
-
-        void withSharding() {
-            System.out.println("withSharding..........");
-            setCommand("-c", "while [ ! -f " + STARTER_SCRIPT + " ]; do sleep 0.1; ls -als; done; cat " + STARTER_SCRIPT + "; " + STARTER_SCRIPT);
-            setWaitStrategy(Wait.forLogMessage("(?i).mongos ready.", 1));
-            setEntrypoint("sh");
-        }
-    }
-
-    @Override
-    protected void containerIsStarting(InspectContainerResponse containerInfo) {
-        if (this.shardingEnabled) {
-            System.out.println("copyFileToContainer...");
-            MountableFile mountableFile = MountableFile.forClasspathResource("/sharding.sh", 0777);
-            copyFileToContainer(mountableFile, STARTER_SCRIPT);
-        }
-    }
-
     private static final DockerImageName DEFAULT_IMAGE_NAME = DockerImageName.parse("mongo");
     private static final String DEFAULT_TAG = "7.0.9";
-
     private static final int CONTAINER_EXIT_CODE_OK = 0;
     private static final int AWAIT_INIT_REPLICA_SET_ATTEMPTS = 60;
-
     private static final String MONGODB_DATABASE_NAME_DEFAULT = "test";
+    private static final String STARTER_SCRIPT = "/testcontainers_start.sh";
+    private boolean shardingEnabled;
 
     public MongoDBContainer(@NonNull final String dockerImageName) {
         this(DockerImageName.parse(dockerImageName));
@@ -64,9 +27,28 @@ public class MongoDBContainer extends GenericContainer<MongoDBContainer> {
         dockerImageName.assertCompatibleWith(DEFAULT_IMAGE_NAME);
     }
 
-    @Override
-    MongoDBContainerDef createContainerDef() {
-        return new MongoDBContainerDef();
+    private static class MongoDBContainerDef extends ContainerDef {
+
+        private static final int MONGODB_INTERNAL_PORT = 27017;
+
+        MongoDBContainerDef() {
+            addExposedTcpPort(MONGODB_INTERNAL_PORT);
+            setCommand("--replSet", "docker-rs");
+            setWaitStrategy(Wait.forLogMessage(".*(?i)waiting for connections.*", 1));
+        }
+
+        void withSharding() {
+            System.out.println("withSharding..........");
+            setCommand("-c", "while [ ! -f " + STARTER_SCRIPT + " ]; do sleep 0.1; done; ls -als; cat " + STARTER_SCRIPT + "; " + STARTER_SCRIPT);
+            setWaitStrategy(Wait.forLogMessage("(?i).*mongos ready.*", 1));
+            setEntrypoint("sh");
+        }
+    }
+
+    public MongoDBContainer withSharding() {
+        this.shardingEnabled = true;
+        getContainerDef().withSharding();
+        return this;
     }
 
     @Override
@@ -75,16 +57,30 @@ public class MongoDBContainer extends GenericContainer<MongoDBContainer> {
     }
 
     @Override
-    protected void containerIsStarted(InspectContainerResponse containerInfo, boolean reused) {
-        if (shardingEnabled) {
-            return;
+    MongoDBContainerDef createContainerDef() {
+        return new MongoDBContainerDef();
+    }
+
+    @Override
+    protected void containerIsStarting(InspectContainerResponse containerInfo) {
+        if (this.shardingEnabled) {
+            System.out.println("copyFileToContainer...");
+            MountableFile mountableFile = MountableFile.forClasspathResource("/sharding.sh", 0777);
+            copyFileToContainer(mountableFile, STARTER_SCRIPT);
+            System.out.println("copyFileToContainer DONE!");
         }
-        try {
-            initReplicaSet(reused);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+    }
+
+    @Override
+    protected void containerIsStarted(InspectContainerResponse containerInfo, boolean reused) {
+        if (!this.shardingEnabled) {
+            try {
+                initReplicaSet(reused);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 

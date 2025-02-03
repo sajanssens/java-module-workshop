@@ -84,3 +84,53 @@ db.adminCommand({ listShards: 1 })
 ```
 
 🎉We learned a nice trick to run a custom starting script for the image without building custom images.
+
+# Error
+When I run 
+root@37152d47f813:/# /testcontainers_start.sh 
+
+manually in the container, I get:
+Starting configsvr
+Initiating configsvr replSet
+MongoNetworkError: connect ECONNREFUSED 127.0.0.1:27019
+Initiating replSet (attempt 1)
+MongoNetworkError: connect ECONNREFUSED 127.0.0.1:27019
+MongoServerError: no replset config has been received
+Initiating replSet (attempt 2)
+{
+  info2: 'no configuration specified. Using a default configuration for the set',
+  me: '37152d47f813:27019',
+  ok: 1
+}
+Starting shardsvr
+Initiating shardsvr replSet
+MongoNetworkError: connect ECONNREFUSED 127.0.0.1:27018
+Initiating replSet (attempt 1)
+MongoNetworkError: connect ECONNREFUSED 127.0.0.1:27018
+MongoServerError: no replset config has been received
+Initiating replSet (attempt 2)
+{
+  info2: 'no configuration specified. Using a default configuration for the set',
+  me: '37152d47f813:27018',
+  ok: 1
+}
+Starting mongos
+Adding a shard
+Attempt #1 'mongosh --eval 'sh.addShard("shardsvr-rs/37152d47f813:27018");'' 
+{"t":{"$date":"2025-02-03T11:50:39.490Z"},"s":"W",  "c":"SHARDING", "id":24132,   "ctx":"main","msg":"Running a sharded cluster with fewer than 3 config servers should only be done for testing purposes and is not recommended for production."}    
+Warning: MongoshWarning: [SHAPI-10003] You are not connected to a mongos. This command may not work as expected.
+MongoServerError: no such command: 'addShard'
+Attempt #2 'mongosh --eval 'sh.addShard("shardsvr-rs/37152d47f813:27018");'' 
+Warning: MongoshWarning: [SHAPI-10003] You are not connected to a mongos. This command may not work as expected.
+MongoServerError: no such command: 'addShard'
+Attempt #3 'mongosh --eval 'sh.addShard("shardsvr-rs/37152d47f813:27018");'' 
+Warning: MongoshWarning: [SHAPI-10003] You are not connected to a mongos. This command may not work as expected.
+MongoServerError: no such command: 'addShard'
+Attempt #4 'mongosh --eval 'sh.addShard("shardsvr-rs/37152d47f813:27018");''
+Warning: MongoshWarning: [SHAPI-10003] You are not connected to a mongos. This command may not work as expected.
+MongoServerError: no such command: 'addShard'
+Attempt #5 'mongosh --eval 'sh.addShard("shardsvr-rs/37152d47f813:27018");''
+Warning: MongoshWarning: [SHAPI-10003] You are not connected to a mongos. This command may not work as expected.
+MongoServerError: no such command: 'addShard'
+Failed 5 attempts
+
