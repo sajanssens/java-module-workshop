@@ -8,7 +8,5 @@ public class MongoDBContainerTest {
         myMongo.start();
         System.out.println(myMongo.getConnectionString());
         myMongo.stop();
-
-        // TODO not working yet, Wait.forLogMessage keeps waiting...
     }
 }
