@@ -10,6 +10,15 @@ import java.io.IOException;
 
 public class MongoDBContainer extends GenericContainer<MongoDBContainer> {
 
+    private boolean shardingEnabled;
+
+    public MongoDBContainer withSharding() {
+        this.shardingEnabled = true;
+        getContainerDef().withSharding();
+        return this;
+    }
+
+    private static final String STARTER_SCRIPT = "/testcontainers_start.sh";
 
     private static class MongoDBContainerDef extends ContainerDef {
 
@@ -18,14 +27,25 @@ public class MongoDBContainer extends GenericContainer<MongoDBContainer> {
         MongoDBContainerDef() {
             addExposedTcpPort(MONGODB_INTERNAL_PORT);
             setCommand("--replSet", "docker-rs");
-            setWaitStrategy(Wait.forLogMessage("(?i).*waiting for connections.*", 1));
+            setWaitStrategy(Wait.forLogMessage("(?i).waiting for connections.", 1));
         }
 
         void withSharding() {
+            System.out.println("withSharding..........");
+            setCommand("-c", "while [ ! -f " + STARTER_SCRIPT + " ]; do sleep 0.1; ls -als; done; cat " + STARTER_SCRIPT + "; " + STARTER_SCRIPT);
+            setWaitStrategy(Wait.forLogMessage("(?i).mongos ready.", 1));
+            setEntrypoint("sh");
         }
     }
 
-
+    @Override
+    protected void containerIsStarting(InspectContainerResponse containerInfo) {
+        if (this.shardingEnabled) {
+            System.out.println("copyFileToContainer...");
+            MountableFile mountableFile = MountableFile.forClasspathResource("/sharding.sh", 0777);
+            copyFileToContainer(mountableFile, STARTER_SCRIPT);
+        }
+    }
 
     private static final DockerImageName DEFAULT_IMAGE_NAME = DockerImageName.parse("mongo");
     private static final String DEFAULT_TAG = "7.0.9";
@@ -54,9 +74,11 @@ public class MongoDBContainer extends GenericContainer<MongoDBContainer> {
         return (MongoDBContainerDef) super.getContainerDef();
     }
 
-
     @Override
     protected void containerIsStarted(InspectContainerResponse containerInfo, boolean reused) {
+        if (shardingEnabled) {
+            return;
+        }
         try {
             initReplicaSet(reused);
         } catch (IOException e) {
@@ -69,6 +91,7 @@ public class MongoDBContainer extends GenericContainer<MongoDBContainer> {
     /**
      * Gets a connection string url, unlike {@link #getReplicaSetUrl} this does not point to a
      * database
+     *
      * @return a connection url pointing to a mongodb instance
      */
     public String getConnectionString() {
@@ -98,7 +121,7 @@ public class MongoDBContainer extends GenericContainer<MongoDBContainer> {
     }
 
     private String[] buildMongoEvalCommand(final String command) {
-        return new String[] {
+        return new String[]{
                 "sh",
                 "-c",
                 "mongosh mongo --eval \"" + command + "\"  || mongo --eval \"" + command + "\"",
@@ -140,8 +163,7 @@ public class MongoDBContainer extends GenericContainer<MongoDBContainer> {
     private void initReplicaSet(boolean reused) throws IOException, InterruptedException {
         if (reused && isReplicationSetAlreadyInitialized()) {
             return;
-        }
-        else {
+        } else {
             final ExecResult execResultInitRs = execInContainer(buildMongoEvalCommand("rs.initiate();"));
             checkMongoNodeExitCode(execResultInitRs);
             final ExecResult execResultWaitForMaster = execInContainer(buildMongoEvalCommand(buildMongoWaitCommand()));
@@ -164,6 +186,4 @@ public class MongoDBContainer extends GenericContainer<MongoDBContainer> {
         );
         return execCheckRsInit.getExitCode() == CONTAINER_EXIT_CODE_OK;
     }
-
-
 }
